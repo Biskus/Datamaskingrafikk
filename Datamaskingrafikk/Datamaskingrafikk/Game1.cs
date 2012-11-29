@@ -21,6 +21,8 @@ namespace Datamaskingrafikk
         GraphicsDeviceManager graphics;
         SpriteBatch spriteBatch;
 
+        //kjartanedit
+
         public Game1()
         {
             graphics = new GraphicsDeviceManager(this);
