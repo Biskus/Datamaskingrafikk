@@ -16,6 +16,8 @@ namespace Datamaskingrafikk
     /// </summary>
     public class Game1 : Microsoft.Xna.Framework.Game
     {
+
+        //dildobjarne
         GraphicsDeviceManager graphics;
         SpriteBatch spriteBatch;
 
