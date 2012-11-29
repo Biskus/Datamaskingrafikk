@@ -11,155 +11,126 @@ using Microsoft.Xna.Framework.Media;
 
 namespace Datamaskingrafikk
 {
-    /// <summary>
-    /// This is the main type for your game
-    /// </summary>
-    public class Game1 : Microsoft.Xna.Framework.Game
+    public partial class Game1 : Microsoft.Xna.Framework.Game
     {
-
-        //dildobjarne
         GraphicsDeviceManager graphics;
-        SpriteBatch spriteBatch;
-        Texture2D[] skyboxTextures;
-        Model skyboxModel;
-        GraphicsDevice device;
-        Effect effect;
+        KeyboardState currentKeys;
 
-        Vector3 cameraPosition;
-        Vector3 cameraUpDirection;
-        Matrix viewMatrix;
-        Matrix projectionMatrix;
+        Effect skyEffect;
 
-        //kjartanedit
+        TextureCube skyTex;
+
+        Matrix SkyWorld, View, Projection;
+
+        Vector3 originalView = new Vector3(0, 0, 10);
+        Vector3 position = Vector3.Zero;
+        float angleX = 0.00f, angleY = 0.00f;
 
         public Game1()
         {
             graphics = new GraphicsDeviceManager(this);
             Content.RootDirectory = "Content";
         }
-        private Model LoadModel(string assetName, out Texture2D[] textures)
-        {
 
-            Model newModel = Content.Load<Model>(assetName);
-            textures = new Texture2D[newModel.Meshes.Count];
-            int i = 0;
-            foreach (ModelMesh mesh in newModel.Meshes)
-                foreach (BasicEffect currentEffect in mesh.Effects)
-                    textures[i++] = currentEffect.Texture;
-
-            foreach (ModelMesh mesh in newModel.Meshes)
-                foreach (ModelMeshPart meshPart in mesh.MeshParts)
-                    meshPart.Effect = effect.Clone();
-
-            return newModel;
-        }
-
-        /// <summary>
-        /// Allows the game to perform any initialization it needs to before starting to run.
-        /// This is where it can query for any required services and load any non-graphic
-        /// related content.  Calling base.Initialize will enumerate through any components
-        /// and initialize them as well.
-        /// </summary>
         protected override void Initialize()
         {
-            // TODO: Add your initialization logic here
-            graphics.PreferredBackBufferWidth = 500;
-            graphics.PreferredBackBufferHeight = 500;
-            graphics.IsFullScreen = false;
-            graphics.ApplyChanges();
-            Window.Title = "Heissjakt";
-
-            //lightDirection.Normalize();            
-
             base.Initialize();
         }
 
-        /// <summary>
-        /// LoadContent will be called once per game and is the place to load
-        /// all of your content.
-        /// </summary>
         protected override void LoadContent()
         {
-            // Create a new SpriteBatch, which can be used to draw textures.
-            spriteBatch = new SpriteBatch(GraphicsDevice);
-            device = graphics.GraphicsDevice;
 
-            effect = Content.Load<Effect>("effects");
-            skyboxModel = LoadModel("skybox", out skyboxTextures);
+            skyEffect = Content.Load<Effect>("SkyEffect");
 
-            // TODO: use this.Content to load your game content here
+            skyTex = Content.Load<TextureCube>("SkyBoxTex");
+
+            skyEffect.Parameters["tex"].SetValue(skyTex);
+
+            SkyWorld = Matrix.Identity;
+            View = Matrix.CreateLookAt(position, originalView, Vector3.Up);
+            Projection = Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, GraphicsDevice.Viewport.AspectRatio, 1, 20);
+
+            //Backreference calls
+            CreateCubeVertexBuffer();
+            CreateCubeIndexBuffer();
         }
 
-        /// <summary>
-        /// UnloadContent will be called once per game and is the place to unload
-        /// all content.
-        /// </summary>
         protected override void UnloadContent()
         {
-            // TODO: Unload any non ContentManager content here
         }
 
-        /// <summary>
-        /// Allows the game to run logic such as updating the world,
-        /// checking for collisions, gathering input, and playing audio.
-        /// </summary>
-        /// <param name="gameTime">Provides a snapshot of timing values.</param>
+        void UpdateView(int dir)
+        {
+            Vector3 tempView = Vector3.Transform(originalView, Matrix.CreateRotationX(angleX));
+            tempView = Vector3.Transform(tempView, Matrix.CreateRotationY(angleY));
+            Vector3 tempUp = Vector3.Transform(Vector3.Up, Matrix.CreateRotationX(angleX));
+            tempUp = Vector3.Transform(tempUp, Matrix.CreateRotationY(angleY));
+            position += dir * Vector3.Normalize(tempView) / 10;
+            View = Matrix.CreateLookAt(Vector3.Zero + position, tempView + position, tempUp);
+        }
+
+
         protected override void Update(GameTime gameTime)
         {
-            // Allows the game to exit
-            if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed)
+            currentKeys = Keyboard.GetState();
+
+            //Press Esc To Exit
+            if (currentKeys.IsKeyDown(Keys.Escape))
                 this.Exit();
 
-            // TODO: Add your update logic here
+
+            //Press Directional Keys to rotate the camera
+            if (currentKeys.IsKeyDown(Keys.Up))
+            {
+                angleX -= 0.01f;
+                if (angleX < -MathHelper.PiOver2) angleX = -MathHelper.PiOver2;
+                UpdateView(0);
+            }
+            if (currentKeys.IsKeyDown(Keys.Down))
+            {
+                angleX += 0.01f;
+                if (angleX > MathHelper.PiOver2) angleX = MathHelper.PiOver2;
+                UpdateView(0);
+            }
+            if (currentKeys.IsKeyDown(Keys.Left))
+            {
+                angleY += 0.01f;
+                UpdateView(0);
+            }
+            if (currentKeys.IsKeyDown(Keys.Right))
+            {
+                angleY -= 0.01f;
+                UpdateView(0);
+            }
+
+            //Page Up Page Down to move forward/backward
+            if (currentKeys.IsKeyDown(Keys.PageUp))
+            {
+                UpdateView(1);
+                SkyWorld = Matrix.CreateTranslation(position);
+            }
+            if (currentKeys.IsKeyDown(Keys.PageDown))
+            {
+                UpdateView(-1);
+                SkyWorld = Matrix.CreateTranslation(position);
+            }
 
             base.Update(gameTime);
         }
 
-        /// <summary>
-        /// This is called when the game should draw itself.
-        /// </summary>
-        /// <param name="gameTime">Provides a snapshot of timing values.</param>
         protected override void Draw(GameTime gameTime)
         {
             GraphicsDevice.Clear(Color.CornflowerBlue);
-            DrawSkybox();
 
-            // TODO: Add your drawing code here
+            GraphicsDevice.SetVertexBuffer(vertices);
+            GraphicsDevice.Indices = indices;
+
+            skyEffect.Parameters["WVP"].SetValue(SkyWorld * View * Projection);
+            skyEffect.CurrentTechnique.Passes[0].Apply();
+
+            GraphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, number_of_vertices, 0, number_of_indices / 3);
 
             base.Draw(gameTime);
-        }
-
-        private void DrawSkybox()
-        {
-            SamplerState ss = new SamplerState();
-            ss.AddressU = TextureAddressMode.Clamp;
-            ss.AddressV = TextureAddressMode.Clamp;
-            device.SamplerStates[0] = ss;
-
-            DepthStencilState dss = new DepthStencilState();
-            dss.DepthBufferEnable = false;
-            device.DepthStencilState = dss;
-
-            Matrix[] skyboxTransforms = new Matrix[skyboxModel.Bones.Count];
-            skyboxModel.CopyAbsoluteBoneTransformsTo(skyboxTransforms);
-            int i = 0;
-            foreach (ModelMesh mesh in skyboxModel.Meshes)
-            {
-                foreach (Effect currentEffect in mesh.Effects)
-                {
-                    Matrix worldMatrix = skyboxTransforms[mesh.ParentBone.Index];
-                    currentEffect.CurrentTechnique = currentEffect.Techniques["Textured"];
-                    currentEffect.Parameters["xWorld"].SetValue(worldMatrix);
-                    currentEffect.Parameters["xView"].SetValue(viewMatrix);
-                    currentEffect.Parameters["xProjection"].SetValue(projectionMatrix);
-                    currentEffect.Parameters["xTexture"].SetValue(skyboxTextures[i++]);
-                }
-                mesh.Draw();
-            }
-
-            dss = new DepthStencilState();
-            dss.DepthBufferEnable = true;
-            device.DepthStencilState = dss;
         }
     }
 }
