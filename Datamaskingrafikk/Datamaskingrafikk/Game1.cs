@@ -20,6 +20,15 @@ namespace Datamaskingrafikk
         //dildobjarne
         GraphicsDeviceManager graphics;
         SpriteBatch spriteBatch;
+        Texture2D[] skyboxTextures;
+        Model skyboxModel;
+        GraphicsDevice device;
+        Effect effect;
+
+        Vector3 cameraPosition;
+        Vector3 cameraUpDirection;
+        Matrix viewMatrix;
+        Matrix projectionMatrix;
 
         //kjartanedit
 
@@ -27,6 +36,22 @@ namespace Datamaskingrafikk
         {
             graphics = new GraphicsDeviceManager(this);
             Content.RootDirectory = "Content";
+        }
+        private Model LoadModel(string assetName, out Texture2D[] textures)
+        {
+
+            Model newModel = Content.Load<Model>(assetName);
+            textures = new Texture2D[newModel.Meshes.Count];
+            int i = 0;
+            foreach (ModelMesh mesh in newModel.Meshes)
+                foreach (BasicEffect currentEffect in mesh.Effects)
+                    textures[i++] = currentEffect.Texture;
+
+            foreach (ModelMesh mesh in newModel.Meshes)
+                foreach (ModelMeshPart meshPart in mesh.MeshParts)
+                    meshPart.Effect = effect.Clone();
+
+            return newModel;
         }
 
         /// <summary>
@@ -38,6 +63,13 @@ namespace Datamaskingrafikk
         protected override void Initialize()
         {
             // TODO: Add your initialization logic here
+            graphics.PreferredBackBufferWidth = 500;
+            graphics.PreferredBackBufferHeight = 500;
+            graphics.IsFullScreen = false;
+            graphics.ApplyChanges();
+            Window.Title = "Heissjakt";
+
+            //lightDirection.Normalize();            
 
             base.Initialize();
         }
@@ -50,6 +82,10 @@ namespace Datamaskingrafikk
         {
             // Create a new SpriteBatch, which can be used to draw textures.
             spriteBatch = new SpriteBatch(GraphicsDevice);
+            device = graphics.GraphicsDevice;
+
+            effect = Content.Load<Effect>("effects");
+            skyboxModel = LoadModel("skybox", out skyboxTextures);
 
             // TODO: use this.Content to load your game content here
         }
@@ -86,10 +122,44 @@ namespace Datamaskingrafikk
         protected override void Draw(GameTime gameTime)
         {
             GraphicsDevice.Clear(Color.CornflowerBlue);
+            DrawSkybox();
 
             // TODO: Add your drawing code here
 
             base.Draw(gameTime);
+        }
+
+        private void DrawSkybox()
+        {
+            SamplerState ss = new SamplerState();
+            ss.AddressU = TextureAddressMode.Clamp;
+            ss.AddressV = TextureAddressMode.Clamp;
+            device.SamplerStates[0] = ss;
+
+            DepthStencilState dss = new DepthStencilState();
+            dss.DepthBufferEnable = false;
+            device.DepthStencilState = dss;
+
+            Matrix[] skyboxTransforms = new Matrix[skyboxModel.Bones.Count];
+            skyboxModel.CopyAbsoluteBoneTransformsTo(skyboxTransforms);
+            int i = 0;
+            foreach (ModelMesh mesh in skyboxModel.Meshes)
+            {
+                foreach (Effect currentEffect in mesh.Effects)
+                {
+                    Matrix worldMatrix = skyboxTransforms[mesh.ParentBone.Index];
+                    currentEffect.CurrentTechnique = currentEffect.Techniques["Textured"];
+                    currentEffect.Parameters["xWorld"].SetValue(worldMatrix);
+                    currentEffect.Parameters["xView"].SetValue(viewMatrix);
+                    currentEffect.Parameters["xProjection"].SetValue(projectionMatrix);
+                    currentEffect.Parameters["xTexture"].SetValue(skyboxTextures[i++]);
+                }
+                mesh.Draw();
+            }
+
+            dss = new DepthStencilState();
+            dss.DepthBufferEnable = true;
+            device.DepthStencilState = dss;
         }
     }
 }
