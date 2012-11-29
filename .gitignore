@@ -1,0 +1,10 @@
+Datamaskingrafikk/Datamaskingrafikk/bin
+Datamaskingrafikk/Datamaskingrafikk/obj
+_ReSharper.*
+*.csproj.user
+*.resharper.user
+*.resharper
+*.suo
+*.cache
+*~
+*.swp
